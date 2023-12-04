@@ -5,8 +5,12 @@ To do:
 
 Modulo einfügen, mit anderen Rechenzeichen ermöglichen
 Welche Rechenreihenfolge ?
-*/
 
+Wenn Fehler geschah, dass nächste Eingabe übernommen wird
+
+x+y; muss auch noch fertig gemacht werde, dass das auch ohne Whitespace angenommen wird.
+*/
+bool durchZuordner;	//Für die Änderung von Zahlen
 // Globale Variablen anlegen, um Magic Constants zu vermeiden
 constexpr char kLet = 'l';
 constexpr char kBezeichner = 'n';
@@ -14,19 +18,23 @@ const string kDeklaration = "let";
 constexpr char kZahl = '8';
 constexpr char kAusgabe = ';';
 constexpr char kEnde = 'q';
+const string kWertZuordnung = "set";
+constexpr char kSet = 's';
 
 //Konstanten
 constexpr double kPi = 3.1415926535;
 constexpr double ke = 2.7182818284;
+vector<string> konstanten = { "e", "pi" };
 
-class Variable			//Klasse für Variablen anlegen
+
+class Variable							//Klasse für Variablen anlegen
 {
 public:
 	string name;
 	double wert;
 };
 
-const Variable pi { "pi", kPi };		//pi als Variable implementieren			muss ich noch verschieben gehört woanders hin
+const Variable pi { "pi", kPi };		//pi als Variable implementieren
 const Variable e { "e", ke };			//e  als Variable implementieren
 
 class SymbolTabelle
@@ -35,7 +43,7 @@ public:
 	double getWert(string variablen_name);
 	void setWert(string variablen_name, double wert);
 	bool istDeklariert(string variablen_name);
-	vector<Variable> definiereVar(string variablen_name, double wert);
+	double definiereVar(string variablen_name, double wert);
 private:
 	vector<Variable> variablen_;		//zum speichern aller Variablen
 };
@@ -44,32 +52,33 @@ SymbolTabelle symbol_tabelle;
 
 double SymbolTabelle::getWert(string variablen_name)
 {
-	for (Variable x : variablen_)
+	for (Variable x : symbol_tabelle.variablen_)
 	{
 		if (variablen_name == x.name)
 		{
 			return x.wert;
 		}
 	}
-	error("Die Variable ist nicht deklariert");
+	error("Die Variable ist nicht deklariert(getWert)");
 }
 
 void SymbolTabelle::setWert(string variablen_name, double wert) 
 {
-	for (Variable x : variablen_)
+	for (int i = 0; i < symbol_tabelle.variablen_.size(); ++i)
 	{
+		Variable x = symbol_tabelle.variablen_[i];
 		if (variablen_name == x.name)
 		{
-			x.wert = wert;
+			symbol_tabelle.variablen_[i].wert = wert;
 			return;
 		}
 	}
-	error("Die Variable ist nicht deklariert");
+	error("Die Variable ist nicht deklariert(setWert)");
 }
 
 bool SymbolTabelle::istDeklariert(string variablen_name) 
 {
-	for (Variable x : variablen_)
+	for (Variable x : symbol_tabelle.variablen_)
 	{
 		if (variablen_name == x.name)
 		{
@@ -79,7 +88,7 @@ bool SymbolTabelle::istDeklariert(string variablen_name)
 	return false;
 }
 
-vector<Variable> SymbolTabelle::definiereVar(string variablen_name, double wert)		//Funktion zu definieren der Variablen
+double SymbolTabelle::definiereVar(string variablen_name, double wert)		//Funktion zu definieren der Variablen
 {
 	if (istDeklariert(variablen_name))
 	{
@@ -88,8 +97,8 @@ vector<Variable> SymbolTabelle::definiereVar(string variablen_name, double wert)
 	else
 	{
 		Variable x{ variablen_name, wert };			//Vorübergehende Variable deklarieren mit Namen und Wert
-		variablen_.push_back(x);					//Variable in den Vector einfügen
-		return variablen_;
+		symbol_tabelle.variablen_.push_back(x);					//Variable in den Vector einfügen
+		return wert;
 	}
 }
 
@@ -178,9 +187,18 @@ Token TokenStream::get()					//Token auslesen
 			cin.putback(ch);
 			string s;
 			cin >> s;
-			if (s == kDeklaration)
+			if (s == kDeklaration)		// ob es gleich let ist für definition der variable
 			{
 				return Token{ kLet };
+			}
+			else if (s == kWertZuordnung)		//ob es gleich set ist für veränderung der Variable
+			{
+				return Token{ kSet };
+			}
+			//workt nicht falsch, man kann den wert von variablen nicht verändern
+			else if (symbol_tabelle.istDeklariert(s) && !durchZuordner)
+			{
+				return Token{ kZahl, symbol_tabelle.getWert(s) };
 			}
 			return Token{ kBezeichner, s };
 		}
@@ -242,13 +260,13 @@ void berechne()				//berechnen
 		catch (runtime_error& e)
 		{
 			cerr << e.what() << '\n';
+			token_stream.ignoreUntil(kAusgabe);
 			aufraeumen();
 		}
 	}
 }
 
-
-double ausdruck();			//Der Linker geht dann zur Funktion ausdruck
+double ausdruck();				//Der Linker geht dann zur Funktion ausdruck (wichtig!)
 
 double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 {
@@ -295,11 +313,11 @@ double term()
 	{
 		switch (t.art)
 		{
-		case '*':					//Multiplikation
+		case '*':							//Multiplikation
 			links *= primary();
 			t = token_stream.get();
 			break;
-		case '/':	// Division
+		case '/':							// Division
 		{
 			double d = primary();
 			if (d == 0.0)					//Division durch 0 verhindern
@@ -310,7 +328,7 @@ double term()
 			t = token_stream.get();
 			break;
 		}
-		default:					//Alles andere
+		default:							//Alles andere
 			token_stream.putback(t);
 			return links;
 		}
@@ -325,11 +343,11 @@ double ausdruck()
 	{
 		switch (t.art)
 		{
-		case '+':				//Addition
+		case '+':					//Addition
 			links += term();
 			t = token_stream.get();
 			break;
-		case '-':				//Subtraktion
+		case '-':					//Subtraktion
 			links -= term();
 			t = token_stream.get();
 			break;
@@ -340,26 +358,29 @@ double ausdruck()
 	}
 }
 
-void deklaration()										//Warum double, vielleicht noch ändern
+void isKonstante(Token t)
 {
-	//lies ein Token
-	//Token muss Bezeichner Repräsentieren, wenn nicht -> Exception
-	Token t = token_stream.get();
-	if (t.art == kBezeichner)
+	for (string x : konstanten)
 	{
-		//lies ein weiteres Token
-		//dieses muss ein '=' sein, ansonsten -> Exception
-		Token t2 = token_stream.get();
+		if (t.bezeichner == x)
+		{
+			error("Konstanten sind nicht veränderbar");
+		}
+	}
+}
+
+double deklaration()										
+{
+	Token t = token_stream.get();							//Token lesen
+	if (t.art == kBezeichner)								//Token = Bezeichner
+	{
+		isKonstante(t);										//Ob es eine konstante ist
+		Token t2 = token_stream.get();						//weiteres Token
 		if (t2.art == '=')
 		{
-			//jetzt lesen wir einen Ausdruck mit ausdruck()
-			//und definieren damit die Variable mit
-			//symbol_tabelle.definiereVar(...)
-			//Diese Methode wirft eine Exception, wenn der Bezeichner
-			//bereits existiert, diese Exception reichen wir weiter
-			double x = ausdruck();
-			symbol_tabelle.definiereVar(t2.bezeichner, t2.wert);
-			return;
+			double x = ausdruck();							//Wert über Ausdruck lesen
+			symbol_tabelle.definiereVar(t.bezeichner, x);	//Variable definieren
+			return x;										//Wert der Variable zurückgeben
 		}
 		else
 		{
@@ -373,6 +394,32 @@ void deklaration()										//Warum double, vielleicht noch ändern
 
 }
 
+double zuordnung()									//Wert der Variable ändern
+{
+	durchZuordner = true;							// auf true, damit beim get()-Aufruf das richtige Token zurückkommt
+	Token t = token_stream.get();
+	if (t.art == kBezeichner)
+	{
+		Token t2 = token_stream.get();
+		if (t2.art != '=')
+		{
+			error("'=' fehlt in der Neudefinition");
+		}
+		else
+		{
+			isKonstante(t);								//Ob es eine Konstante ist, wenn ja -> Exception
+			double x = ausdruck();
+			symbol_tabelle.setWert(t.bezeichner, x);
+			durchZuordner = false;						//Auf den Standartwert setzen
+			return x;
+		}
+	}
+	else
+	{
+		error("zuordnung()");
+	}
+}
+
 double anweisung()
 {
 	//lies ein Token
@@ -381,21 +428,26 @@ double anweisung()
 	// rufe Funktion deklaration() auf
 	if (t.art == kLet)
 	{
-		deklaration();
+		return deklaration();
+	}
+	else if (t.art == kSet)
+	{
+		return zuordnung();
 	}
 	else
 	{
-		token_stream.putback(t);
-		double x = ausdruck();
+		token_stream.putback(t);			//Token zurücklegen
+		double x = ausdruck();				// Wert des Audrucks
 		return x;
 	}
-	//Ansonsten lege das Token erstmal zurück
-	// und rufe ausdruck() auf
 }
 
 
 int main()
 {
+	//Konstanten als Variable 
+	symbol_tabelle.definiereVar("e", ke);
+	symbol_tabelle.definiereVar("pi", kPi);
 	try
 	{
 		berechne();
