@@ -1,16 +1,6 @@
 #include "std_lib_inc.h";
 
-/*
-To do:
-
-Modulo einfügen, mit anderen Rechenzeichen ermöglichen
-Welche Rechenreihenfolge ?
-
-Wenn Fehler geschah, dass nächste Eingabe übernommen wird
-
-x+y; muss auch noch fertig gemacht werde, dass das auch ohne Whitespace angenommen wird.
-*/
-bool durchZuordner;	//Für die Änderung von Zahlen
+bool durchZuordner;	//Für die Wertänderung der Variablen
 // Globale Variablen anlegen, um Magic Constants zu vermeiden
 constexpr char kLet = 'l';
 constexpr char kBezeichner = 'n';
@@ -59,7 +49,7 @@ double SymbolTabelle::getWert(string variablen_name)
 			return x.wert;
 		}
 	}
-	error("Die Variable ist nicht deklariert(getWert)");
+	error("Die Variable ist nicht deklariert(getWert)");		//Ich glaube die wird nie aufgerufen
 }
 
 void SymbolTabelle::setWert(string variablen_name, double wert) 
@@ -73,7 +63,7 @@ void SymbolTabelle::setWert(string variablen_name, double wert)
 			return;
 		}
 	}
-	error("Die Variable ist nicht deklariert(setWert)");
+	error("Diese Variable ist undefiniert.");
 }
 
 bool SymbolTabelle::istDeklariert(string variablen_name) 
@@ -172,7 +162,7 @@ Token TokenStream::get()					//Token auslesen
 	{
 	case kAusgabe: case kEnde:
 	case '(': case ')': case '{': case '}':
-	case '+': case '-': case '*': case '/': case '=':
+	case '+': case '-': case '*': case '/': case '=': case'%':
 		return Token{ ch };
 	case '.':
 	case '0': case '1': case '2': case '3': case '4':
@@ -184,9 +174,17 @@ Token TokenStream::get()					//Token auslesen
 	default:
 		if (isalpha(ch))			//ob es ein Buchstabe ist
 		{
-			cin.putback(ch);
 			string s;
-			cin >> s;
+			s += ch;
+			cin >> noskipws;
+			cin >> ch;
+			while (isalpha(ch) || isdigit(ch))
+			{
+				s += ch;
+				cin >> ch;
+			}
+			cin.putback(ch);
+			cin >> skipws;
 			if (s == kDeklaration)		// ob es gleich let ist für definition der variable
 			{
 				return Token{ kLet };
@@ -225,16 +223,10 @@ void TokenStream::ignoreUntil(char c)		//Bis zu einem bestimmten char ignorieren
 	}
 }
 
+
 void aufraeumen()					//token_stream leeren
 {
-	while (true)
-	{
-		Token t = token_stream.get();
-		if (t.art == kAusgabe)
-		{
-			return;
-		}
-	}
+	token_stream.ignoreUntil(kAusgabe);
 }
 
 double anweisung();
@@ -260,7 +252,6 @@ void berechne()				//berechnen
 		catch (runtime_error& e)
 		{
 			cerr << e.what() << '\n';
-			token_stream.ignoreUntil(kAusgabe);
 			aufraeumen();
 		}
 	}
@@ -285,7 +276,7 @@ double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 		t = token_stream.get();
 		if (t.art != ')')
 		{
-			error("Öffnende '(' ohne passende schließende ')'.");
+			error("Beginnende '(' ohne passende beendende ')'.");
 		}
 		return d;
 	}
@@ -295,12 +286,12 @@ double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 		t = token_stream.get();
 		if (t.art != '}')
 		{
-			error("Öffnende '{' ohne passende schließende '}'.");
+			error("Beginnende '{' ohne passende beendende '}'.");
 		}
 		return d;
 	}
 	default:
-		error("Primärausdruck erwartet");
+		error("Primary erwartet");
 		return 0;
 	}
 }
@@ -322,11 +313,27 @@ double term()
 			double d = primary();
 			if (d == 0.0)					//Division durch 0 verhindern
 			{
-				error("Division durch 0");
+				error("Division durch 0 ist nicht erlaubt.");
 			}
 			links /= d;
 			t = token_stream.get();
 			break;
+		}
+		case '%':
+		{
+			double d = primary();
+			if (d == 0.0)
+			{
+				error("Modulo durch 0 ist nicht erlaubt.");
+			}
+			else if (int(links) != links || int(d) != d)
+			{
+				error("Modulo ist nur auf ganzen Zahlen erlaubt.");
+			}
+			else
+			{
+				return (int(links) % int(d));
+			}
 		}
 		default:							//Alles andere
 			token_stream.putback(t);
