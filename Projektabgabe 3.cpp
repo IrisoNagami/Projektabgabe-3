@@ -1,6 +1,5 @@
 #include "std_lib_inc.h";
 
-bool durchZuordner;	//Für die Wertänderung der Variablen
 // Globale Variablen anlegen, um Magic Constants zu vermeiden
 constexpr char kLet = 'l';
 constexpr char kBezeichner = 'n';
@@ -49,10 +48,10 @@ double SymbolTabelle::getWert(string variablen_name)
 			return x.wert;
 		}
 	}
-	error("Die Variable ist nicht deklariert(getWert)");		//Ich glaube die wird nie aufgerufen
+	error("Diese Variable ist undefiniert.");
 }
 
-void SymbolTabelle::setWert(string variablen_name, double wert) 
+void SymbolTabelle::setWert(string variablen_name, double wert)			//Funktion zum setzten eines Wert der Variable
 {
 	for (int i = 0; i < symbol_tabelle.variablen_.size(); ++i)
 	{
@@ -66,7 +65,7 @@ void SymbolTabelle::setWert(string variablen_name, double wert)
 	error("Diese Variable ist undefiniert.");
 }
 
-bool SymbolTabelle::istDeklariert(string variablen_name) 
+bool SymbolTabelle::istDeklariert(string variablen_name)			//Funktion, ob Variable deklariert ist
 {
 	for (Variable x : symbol_tabelle.variablen_)
 	{
@@ -82,13 +81,13 @@ double SymbolTabelle::definiereVar(string variablen_name, double wert)		//Funkti
 {
 	if (istDeklariert(variablen_name))
 	{
-		error("Die Variable ist bereits deklariert");		//Wenn die Variable mit dem Namen schon existiert
+		error("Variable bereits deklariert");		//Wenn die Variable mit dem Namen schon existiert
 	}
 	else
 	{
 		Variable x{ variablen_name, wert };			//Vorübergehende Variable deklarieren mit Namen und Wert
 		symbol_tabelle.variablen_.push_back(x);					//Variable in den Vector einfügen
-		return wert;
+		return symbol_tabelle.getWert(x.name);
 	}
 }
 
@@ -193,14 +192,9 @@ Token TokenStream::get()					//Token auslesen
 			{
 				return Token{ kSet };
 			}
-			//workt nicht falsch, man kann den wert von variablen nicht verändern
-			else if (symbol_tabelle.istDeklariert(s) && !durchZuordner)
-			{
-				return Token{ kZahl, symbol_tabelle.getWert(s) };
-			}
 			return Token{ kBezeichner, s };
 		}
-		error("Unbekanntes Token");
+		error("Falsches Token");
 	}
 }
 
@@ -266,6 +260,8 @@ double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 	{
 	case kZahl:
 		return t.wert;
+	case kBezeichner:
+		return symbol_tabelle.getWert(t.bezeichner);
 	case '-':
 		return -primary();		//Wenn die eingegebene Zahl negativ ist
 	case '+':
@@ -276,6 +272,7 @@ double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 		t = token_stream.get();
 		if (t.art != ')')
 		{
+			cin.putback(kAusgabe);
 			error("Beginnende '(' ohne passende beendende ')'.");
 		}
 		return d;
@@ -286,6 +283,7 @@ double primary()				// Um stärkere Bindung durch Klammern zu überprüfen
 		t = token_stream.get();
 		if (t.art != '}')
 		{
+			cin.putback(kAusgabe);
 			error("Beginnende '{' ohne passende beendende '}'.");
 		}
 		return d;
@@ -371,7 +369,7 @@ void isKonstante(Token t)
 	{
 		if (t.bezeichner == x)
 		{
-			error("Konstanten sind nicht veränderbar");
+			error("Zuordnung an eine Konstante nicht erlaubt.");
 		}
 	}
 }
@@ -387,7 +385,7 @@ double deklaration()
 		{
 			double x = ausdruck();							//Wert über Ausdruck lesen
 			symbol_tabelle.definiereVar(t.bezeichner, x);	//Variable definieren
-			return x;										//Wert der Variable zurückgeben
+			return symbol_tabelle.getWert(t.bezeichner);										//Wert der Variable zurückgeben
 		}
 		else
 		{
@@ -396,14 +394,13 @@ double deklaration()
 	}
 	else
 	{
-		error("Diese Variable ist undefiniert");			//Fehlermeldung muss geändert werden, passt nicht mehr
+		error("Bezeichner erwartet in Deklaration.");			//Fehlermeldung muss geändert werden, passt nicht mehr
 	}
 
 }
 
 double zuordnung()									//Wert der Variable ändern
 {
-	durchZuordner = true;							// auf true, damit beim get()-Aufruf das richtige Token zurückkommt
 	Token t = token_stream.get();
 	if (t.art == kBezeichner)
 	{
@@ -417,13 +414,8 @@ double zuordnung()									//Wert der Variable ändern
 			isKonstante(t);								//Ob es eine Konstante ist, wenn ja -> Exception
 			double x = ausdruck();
 			symbol_tabelle.setWert(t.bezeichner, x);
-			durchZuordner = false;						//Auf den Standartwert setzen
-			return x;
+			return symbol_tabelle.getWert(t.bezeichner);
 		}
-	}
-	else
-	{
-		error("zuordnung()");
 	}
 }
 
