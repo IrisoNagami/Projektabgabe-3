@@ -394,7 +394,7 @@ double deklaration()
 	}
 	else
 	{
-		error("Bezeichner erwartet in Deklaration.");			//Fehlermeldung muss geändert werden, passt nicht mehr
+		error("Bezeichner erwartet in Deklaration.");
 	}
 
 }
